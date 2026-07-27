@@ -89,10 +89,10 @@ try:
     st.divider()
     st.subheader("Outlet Payment & Bank Status")
     
-    # Base columns that are allowed to be displayed
+    # Base columns that are allowed to be displayed (Added 'Payment Date' here)
     base_cols = [
         'Month', 'Outlet Name', 'Lic ID', 'Payment To', 'Claim Amount', 
-        'Payment Status', 'UTR NO', 'Bank Name', 'Account Number', 
+        'Payment Status', 'Payment Date', 'UTR NO', 'Bank Name', 'Account Number', 
         'IFSC Code'
     ]
     

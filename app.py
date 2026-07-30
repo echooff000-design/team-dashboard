@@ -32,6 +32,15 @@ def load_workbook_data(url):
   return all_sheets
 
 
+# Helper function to convert dataframe into an in-memory Excel (.xlsx) file download
+def convert_df_to_excel(df):
+  output = io.BytesIO()
+  with pd.ExcelWriter(output, engine="openpyxl") as writer:
+    df.to_excel(writer, index=False, sheet_name="Filtered_Data")
+  processed_data = output.getvalue()
+  return processed_data
+
+
 st.title("📊 WB Trade Claim & KYC Details")
 
 try:
@@ -186,10 +195,8 @@ try:
 
   st.subheader("Sheet Data & Records")
 
-  # --- COLUMN DISPLAY CONTROL (FIXED TO SHOW ALL BY DEFAULT WITHOUT CLUTTER) ---
+  # --- COLUMN DISPLAY CONTROL ---
   all_columns = df.columns.tolist()
-
-  # Checkbox to let users optionally hide/customize columns if they want, but defaults to ALL columns active
   show_all_cols = st.checkbox(
       "✅ Display All Columns Automatically", value=True
   )
@@ -204,7 +211,19 @@ try:
     )
 
   if selected_cols:
-    st.dataframe(df[selected_cols], use_container_width=True, hide_index=True)
+    filtered_df = df[selected_cols]
+    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+
+    # --- EXCEL (.xlsx) DOWNLOAD BUTTON ---
+    excel_data = convert_df_to_excel(filtered_df)
+    st.download_button(
+        label="📥 Download Filtered Data as Excel (.xlsx)",
+        data=excel_data,
+        file_name=f"{selected_sheet}_Filtered_Data.xlsx",
+        mime=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
   else:
     st.warning("Please select at least one column to display.")
 

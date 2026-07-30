@@ -8,13 +8,12 @@ st.set_page_config(page_title="Team Outlet Dashboard", layout="wide")
 
 # Fetch credentials from Streamlit Secrets
 EXCEL_URL = st.secrets["sharepoint"]["file_url"]
-SHEET_NAME = st.secrets["sharepoint"]["sheet_name"]
+DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
 
 
-# Cache the data for 10 minutes so the app loads instantly for the team
+# Cache the data for 10 minutes, but it can be manually cleared via the Refresh button
 @st.cache_data(ttl=600)
-def load_data():
-  # Simulate a browser header to bypass SharePoint blocks
+def load_workbook_data(url):
   headers = {
       "User-Agent": (
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
@@ -22,37 +21,58 @@ def load_data():
       )
   }
 
-  response = requests.get(EXCEL_URL, headers=headers)
+  response = requests.get(url, headers=headers)
   if response.status_code != 200:
     raise Exception(
         f"Failed to download file. Status code: {response.status_code}"
     )
 
-  excel_file = io.BytesIO(response.content)
-
-  # Load the specific sheet name, with a fallback to the first sheet if the name doesn't match
-  try:
-    df = pd.read_excel(excel_file, sheet_name=SHEET_NAME)
-  except ValueError:
-    df = pd.read_excel(excel_file, sheet_name=0)
-
-  # Remove any accidental spaces at the beginning or end of column names
-  df.columns = df.columns.str.strip()
-
-  # Convert Account Number to string to prevent commas in the display
-  if "Account Number" in df.columns:
-    df["Account Number"] = (
-        df["Account Number"].astype(str).str.replace(r"\.0$", "", regex=True)
-    )
-
-  return df
+  excel_bytes = io.BytesIO(response.content)
+  # Read all sheets into a dictionary of DataFrames
+  all_sheets = pd.read_excel(excel_bytes, sheet_name=None)
+  return all_sheets
 
 
 st.title("📊 WB Trade Claim Details")
 
 try:
-  df = load_data()
+  # Load all sheets from workbook
+  sheets_dict = load_workbook_data(EXCEL_URL)
+  available_sheet_names = list(sheets_dict.keys())
 
+  # --- SIDEBAR CONTROLS ---
+  st.sidebar.header("🛠️ Dashboard Controls")
+
+  # Manual Refresh Button
+  if st.sidebar.button("🔄 Refresh Data"):
+    st.cache_data.clear()  # Clears the 10-minute cache
+    st.rerun()  # Triggers an immediate app reload
+
+  st.sidebar.divider()
+
+  # Select Sheet Tab from Sidebar
+  default_idx = (
+      available_sheet_names.index(DEFAULT_SHEET)
+      if DEFAULT_SHEET in available_sheet_names
+      else 0
+  )
+  selected_sheet = st.sidebar.selectbox(
+      "📁 Select Sheet Tab:", available_sheet_names, index=default_idx
+  )
+
+  # Get the dataframe for the selected sheet
+  df = sheets_dict[selected_sheet].copy()
+
+  # Remove any accidental spaces at the beginning or end of column names
+  df.columns = df.columns.str.strip()
+
+  # Convert Account Number to string to prevent formatting/comma errors in display
+  if "Account Number" in df.columns:
+    df["Account Number"] = (
+        df["Account Number"].astype(str).str.replace(r"\.0$", "", regex=True)
+    )
+
+  st.subheader(f"Active Sheet: {selected_sheet}")
   st.subheader("Filter Rows")
 
   # --- ROW FILTERS ---
@@ -126,10 +146,13 @@ try:
   ]
 
   available_cols = [col for col in base_cols if col in df.columns]
+  # Fallback to all columns if base_cols don't match the chosen sheet layout
+  if not available_cols:
+    available_cols = df.columns.tolist()
 
   selected_cols = st.multiselect(
       "⚙️ Choose Columns to Display:",
-      options=available_cols,
+      options=df.columns.tolist(),
       default=available_cols,
   )
 

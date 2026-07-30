@@ -1,6 +1,6 @@
 import io
-import requests
 import pandas as pd
+import requests
 import streamlit as st
 
 # Configure the mobile-friendly page layout
@@ -14,7 +14,7 @@ SHEET_NAME = st.secrets["sharepoint"]["sheet_name"]
 # Cache the data for 10 minutes so the app loads instantly for the team
 @st.cache_data(ttl=600)
 def load_data():
-  # Simulate a browser header to bypass SharePoint 403 blocks
+  # Simulate a browser header to bypass SharePoint blocks
   headers = {
       "User-Agent": (
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
@@ -28,8 +28,13 @@ def load_data():
         f"Failed to download file. Status code: {response.status_code}"
     )
 
-  # Read the excel file content from memory bytes
-  df = pd.read_excel(io.BytesIO(response.content), sheet_name=SHEET_NAME)
+  excel_file = io.BytesIO(response.content)
+
+  # Load the specific sheet name, with a fallback to the first sheet if the name doesn't match
+  try:
+    df = pd.read_excel(excel_file, sheet_name=SHEET_NAME)
+  except ValueError:
+    df = pd.read_excel(excel_file, sheet_name=0)
 
   # Remove any accidental spaces at the beginning or end of column names
   df.columns = df.columns.str.strip()
@@ -54,12 +59,14 @@ try:
   col1, col2, col3 = st.columns(3)
 
   with col1:
+    # Month Filter
     if "Month" in df.columns:
       months = df["Month"].dropna().unique().tolist()
       selected_month = st.selectbox("Select Month:", ["All"] + months)
       if selected_month != "All":
         df = df[df["Month"] == selected_month]
 
+    # ASM Filter
     if "Asm" in df.columns:
       asms = df["Asm"].dropna().unique().tolist()
       selected_asm = st.selectbox("Select ASM:", ["All"] + asms)
@@ -67,18 +74,21 @@ try:
         df = df[df["Asm"] == selected_asm]
 
   with col2:
+    # Payment Status Filter
     if "Payment Status" in df.columns:
       statuses = df["Payment Status"].dropna().unique().tolist()
       selected_status = st.selectbox("Select Payment Status:", ["All"] + statuses)
       if selected_status != "All":
         df = df[df["Payment Status"] == selected_status]
 
+    # TSE REV Filter
     if "TSE REV" in df.columns:
       tses = df["TSE REV"].dropna().unique().tolist()
       selected_tse = st.selectbox("Select TSE REV:", ["All"] + tses)
       if selected_tse != "All":
         df = df[df["TSE REV"] == selected_tse]
 
+    # Payment To Filter
     if "Payment To" in df.columns:
       payment_tos = df["Payment To"].dropna().unique().tolist()
       selected_payment_to = st.selectbox("Select Payment To:", ["All"] + payment_tos)
@@ -86,11 +96,13 @@ try:
         df = df[df["Payment To"] == selected_payment_to]
 
   with col3:
+    # Free text search for Outlet Name
     if "Outlet Name" in df.columns:
       search_outlet = st.text_input("🔍 Search by Outlet Name:", "")
       if search_outlet:
         df = df[df["Outlet Name"].str.contains(search_outlet, case=False, na=False)]
 
+      # Dropdown selection for Outlet Name
       outlets = df["Outlet Name"].dropna().unique().tolist()
       selected_outlet = st.selectbox("Or Select Specific Outlet:", ["All"] + outlets)
       if selected_outlet != "All":

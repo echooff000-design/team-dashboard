@@ -24,7 +24,7 @@ def load_data():
         
     return df
 
-st.title("📊 West Bengal LPB Claim Details")
+st.title("📊 WB Trade Claim Details")
 
 try:
     df = load_data()

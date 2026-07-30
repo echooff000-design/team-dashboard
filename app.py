@@ -48,7 +48,6 @@ st.title("📊 WB Trade Claim & KYC Details")
 try:
   # --- AUTO-REFRESH LOGIC FOR 9:00 PM DAILY ---
   now = datetime.now()
-  # Create a refresh key that changes after 9:00 PM every day
   if now.time() >= time(21, 0):
     current_refresh_key = f"{now.date()}_post_21"
   else:
@@ -65,6 +64,13 @@ try:
   if st.sidebar.button("🔄 Refresh Data Now"):
     st.cache_data.clear()
     st.rerun()
+
+  st.sidebar.divider()
+
+  # --- EXTERNAL LINK TAB ---
+  st.sidebar.markdown(
+      "🔗 **[Go to Sale](https://wbsale.streamlit.app/)**", unsafe_allow_html=True
+  )
 
   st.sidebar.divider()
   st.sidebar.subheader("📁 Select Sheet Tab:")

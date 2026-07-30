@@ -11,7 +11,7 @@ EXCEL_URL = st.secrets["sharepoint"]["file_url"]
 DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
 
 
-# Cache the data for 10 minutes, but it can be manually cleared via the Refresh button
+# Cache the data for 10 minutes, with a manual clear via Refresh
 @st.cache_data(ttl=600)
 def load_workbook_data(url):
   headers = {
@@ -28,12 +28,11 @@ def load_workbook_data(url):
     )
 
   excel_bytes = io.BytesIO(response.content)
-  # Read all sheets into a dictionary of DataFrames
   all_sheets = pd.read_excel(excel_bytes, sheet_name=None)
   return all_sheets
 
 
-st.title("📊 WB Trade Claim Details")
+st.title("📊 WB Trade Claim & KYC Details")
 
 try:
   # Load all sheets from workbook
@@ -45,8 +44,8 @@ try:
 
   # Manual Refresh Button
   if st.sidebar.button("🔄 Refresh Data"):
-    st.cache_data.clear()  # Clears the 10-minute cache
-    st.rerun()  # Triggers an immediate app reload
+    st.cache_data.clear()
+    st.rerun()
 
   st.sidebar.divider()
 
@@ -66,7 +65,7 @@ try:
   # Remove any accidental spaces at the beginning or end of column names
   df.columns = df.columns.str.strip()
 
-  # Convert Account Number to string to prevent formatting/comma errors in display
+  # Convert Account Number to string to prevent formatting errors in display
   if "Account Number" in df.columns:
     df["Account Number"] = (
         df["Account Number"].astype(str).str.replace(r"\.0$", "", regex=True)
@@ -75,85 +74,97 @@ try:
   st.subheader(f"Active Sheet: {selected_sheet}")
   st.subheader("Filter Rows")
 
-  # --- ROW FILTERS ---
+  # --- ROW FILTERS (ASM, TSE, Lic ID, Outlet Name) ---
   col1, col2, col3 = st.columns(3)
 
   with col1:
-    # Month Filter
-    if "Month" in df.columns:
-      months = df["Month"].dropna().unique().tolist()
-      selected_month = st.selectbox("Select Month:", ["All"] + months)
-      if selected_month != "All":
-        df = df[df["Month"] == selected_month]
-
-    # ASM Filter
-    if "Asm" in df.columns:
-      asms = df["Asm"].dropna().unique().tolist()
-      selected_asm = st.selectbox("Select ASM:", ["All"] + asms)
+    # ASM Filter (checking common variations of column names)
+    asm_col = next(
+        (c for c in df.columns if c.lower() in ["asm", "area sales manager"]),
+        None,
+    )
+    if asm_col:
+      asms = df[asm_col].dropna().unique().tolist()
+      selected_asm = st.selectbox(f"Select {asm_col}:", ["All"] + asms)
       if selected_asm != "All":
-        df = df[df["Asm"] == selected_asm]
+        df = df[df[asm_col] == selected_asm]
 
   with col2:
-    # Payment Status Filter
-    if "Payment Status" in df.columns:
-      statuses = df["Payment Status"].dropna().unique().tolist()
-      selected_status = st.selectbox("Select Payment Status:", ["All"] + statuses)
-      if selected_status != "All":
-        df = df[df["Payment Status"] == selected_status]
-
-    # TSE REV Filter
-    if "TSE REV" in df.columns:
-      tses = df["TSE REV"].dropna().unique().tolist()
-      selected_tse = st.selectbox("Select TSE REV:", ["All"] + tses)
+    # TSE Filter (checking common variations of column names)
+    tse_col = next(
+        (
+            c
+            for c in df.columns
+            if c.lower() in ["tse rev", "tse", "territory sales executive"]
+        ),
+        None,
+    )
+    if tse_col:
+      tses = df[tse_col].dropna().unique().tolist()
+      selected_tse = st.selectbox(f"Select {tse_col}:", ["All"] + tses)
       if selected_tse != "All":
-        df = df[df["TSE REV"] == selected_tse]
-
-    # Payment To Filter
-    if "Payment To" in df.columns:
-      payment_tos = df["Payment To"].dropna().unique().tolist()
-      selected_payment_to = st.selectbox("Select Payment To:", ["All"] + payment_tos)
-      if selected_payment_to != "All":
-        df = df[df["Payment To"] == selected_payment_to]
+        df = df[df[tse_col] == selected_tse]
 
   with col3:
-    # Free text search for Outlet Name
-    if "Outlet Name" in df.columns:
-      search_outlet = st.text_input("🔍 Search by Outlet Name:", "")
-      if search_outlet:
-        df = df[df["Outlet Name"].str.contains(search_outlet, case=False, na=False)]
+    # Lic ID Filter
+    lic_col = next(
+        (c for c in df.columns if c.lower() in ["lic id", "licid", "license id"]),
+        None,
+    )
+    if lic_col:
+      lic_ids = df[lic_col].dropna().unique().tolist()
+      # Convert elements to string for clean sorting/display if needed
+      lic_ids = [str(x) for x in lic_ids]
+      selected_lic = st.selectbox("Select Lic ID:", ["All"] + lic_ids)
+      if selected_lic != "All":
+        df = df[df[lic_col].astype(str) == selected_lic]
 
-      # Dropdown selection for Outlet Name
-      outlets = df["Outlet Name"].dropna().unique().tolist()
-      selected_outlet = st.selectbox("Or Select Specific Outlet:", ["All"] + outlets)
+  # Outlet Name Free Text Search & Specific Dropdown Selection
+  outlet_col = next(
+      (
+          c
+          for c in df.columns
+          if c.lower() in ["outlet name", "outlet", "customer name"]
+      ),
+      None,
+  )
+  if outlet_col:
+    st.markdown("---")
+    search_col1, search_col2 = st.columns(2)
+
+    with search_col1:
+      search_outlet = st.text_input("🔍 Search by Outlet Name (Keyword):", "")
+      if search_outlet:
+        df = df[
+            df[outlet_col].astype(str).str.contains(search_outlet, case=False, na=False)
+        ]
+
+    with search_col2:
+      outlets = df[outlet_col].dropna().unique().tolist()
+      selected_outlet = st.selectbox(
+          "Or Select Specific Outlet Name:", ["All"] + outlets
+      )
       if selected_outlet != "All":
-        df = df[df["Outlet Name"] == selected_outlet]
+        df = df[df[outlet_col] == selected_outlet]
 
   st.divider()
-  st.subheader("Outlet Payment & Bank Status")
 
-  base_cols = [
-      "Month",
-      "Outlet Name",
-      "Lic ID",
-      "Payment To",
-      "Claim Amount",
-      "Payment Status",
-      "Payment Date",
-      "UTR NO",
-      "Bank Name",
-      "Account Number",
-      "IFSC Code",
-  ]
+  # --- ROW COUNT / SEARCH REFERENCE ---
+  total_rows = len(df)
+  st.info(
+      f"📌 **Search Reference:** Showing **{total_rows}** matching records out"
+      f" of the sheet data."
+  )
 
-  available_cols = [col for col in base_cols if col in df.columns]
-  # Fallback to all columns if base_cols don't match the chosen sheet layout
-  if not available_cols:
-    available_cols = df.columns.tolist()
+  st.subheader("Sheet Data & Records")
+
+  # --- COLUMN VISIBILITY (SHOW ALL COLUMNS BY DEFAULT) ---
+  all_columns = df.columns.tolist()
 
   selected_cols = st.multiselect(
-      "⚙️ Choose Columns to Display:",
-      options=df.columns.tolist(),
-      default=available_cols,
+      "⚙️ Choose Columns to Display (All columns selected by default):",
+      options=all_columns,
+      default=all_columns,
   )
 
   if selected_cols:

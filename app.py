@@ -1,4 +1,5 @@
 import io
+from datetime import datetime, time
 import pandas as pd
 import requests
 import streamlit as st
@@ -11,9 +12,10 @@ EXCEL_URL = st.secrets["sharepoint"]["file_url"]
 DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
 
 
-# Cache the data for 10 minutes, with a manual clear via Refresh
-@st.cache_data(ttl=600)
-def load_workbook_data(url):
+# Cache the data. We include a dynamic time key based on whether 9:00 PM today has passed
+# so that the cache automatically expires/refreshes post 9 PM daily.
+@st.cache_data(ttl=3600)
+def load_workbook_data(url, refresh_key):
   headers = {
       "User-Agent": (
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
@@ -44,15 +46,23 @@ def convert_df_to_excel(df):
 st.title("📊 WB Trade Claim & KYC Details")
 
 try:
-  # Load all sheets from workbook
-  sheets_dict = load_workbook_data(EXCEL_URL)
+  # --- AUTO-REFRESH LOGIC FOR 9:00 PM DAILY ---
+  now = datetime.now()
+  # Create a refresh key that changes after 9:00 PM every day
+  if now.time() >= time(21, 0):
+    current_refresh_key = f"{now.date()}_post_21"
+  else:
+    current_refresh_key = f"{now.date()}_pre_21"
+
+  # Load all sheets from workbook using the dynamic daily key
+  sheets_dict = load_workbook_data(EXCEL_URL, current_refresh_key)
   available_sheet_names = list(sheets_dict.keys())
 
   # --- SIDEBAR CONTROLS ---
   st.sidebar.header("🛠️ Dashboard Controls")
 
   # Manual Refresh Button
-  if st.sidebar.button("🔄 Refresh Data"):
+  if st.sidebar.button("🔄 Refresh Data Now"):
     st.cache_data.clear()
     st.rerun()
 
@@ -112,7 +122,7 @@ try:
   )
 
   if is_payment_sheet:
-    # 6 columns for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To, Payment Status)
+    # 6 columns for Payment Details sheets
     col1, col2, col3, col4, col5, col6 = st.columns(6)
 
     with col1:

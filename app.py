@@ -99,59 +99,229 @@ try:
   st.subheader(f"Active Sheet: {selected_sheet}")
   st.subheader("Filter Rows")
 
-  # --- ROW FILTERS (ASM Name, TSE Name, License No) ---
-  col1, col2, col3 = st.columns(3)
+  # --- DYNAMIC ROW FILTERS BASED ON SHEET TYPE ---
+  sheet_lower = selected_sheet.lower()
+  is_first_three = (
+      selected_sheet in available_sheet_names[:3]
+      if len(available_sheet_names) >= 3
+      else True
+  )
+  is_payment_sheet = (
+      "trade payment details" in sheet_lower
+      or "marketing payment details" in sheet_lower
+  )
 
-  with col1:
-    # ASM Name Filter
-    asm_col = next(
-        (
-            c
-            for c in df.columns
-            if c.lower() in ["asm name", "asm", "area sales manager"]
-        ),
-        None,
-    )
-    if asm_col:
-      asms = df[asm_col].dropna().unique().tolist()
-      selected_asm = st.selectbox(f"Select {asm_col}:", ["All"] + asms)
-      if selected_asm != "All":
-        df = df[df[asm_col] == selected_asm]
+  if is_payment_sheet:
+    # 6 columns for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To, Payment Status)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
 
-  with col2:
-    # TSE Name Filter
-    tse_col = next(
-        (
-            c
-            for c in df.columns
-            if c.lower()
-            in ["tse name", "tse rev", "tse", "territory sales executive"]
-        ),
-        None,
-    )
-    if tse_col:
-      tses = df[tse_col].dropna().unique().tolist()
-      selected_tse = st.selectbox(f"Select {tse_col}:", ["All"] + tses)
-      if selected_tse != "All":
-        df = df[df[tse_col] == selected_tse]
+    with col1:
+      month_col = next(
+          (c for c in df.columns if c.lower() in ["month", "months", "period"]),
+          None,
+      )
+      if month_col:
+        months = df[month_col].dropna().unique().tolist()
+        selected_month = st.selectbox(f"Select {month_col}:", ["All"] + months)
+        if selected_month != "All":
+          df = df[df[month_col] == selected_month]
 
-  with col3:
-    # License No Filter
-    lic_col = next(
-        (
-            c
-            for c in df.columns
-            if c.lower()
-            in ["license no", "licence no", "lic id", "licid", "license id"]
-        ),
-        None,
-    )
-    if lic_col:
-      lic_ids = df[lic_col].dropna().unique().tolist()
-      lic_ids = [str(x) for x in lic_ids]
-      selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
-      if selected_lic != "All":
-        df = df[df[lic_col].astype(str) == selected_lic]
+    with col2:
+      asm_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["asm name", "asm", "area sales manager"]
+          ),
+          None,
+      )
+      if asm_col:
+        asms = df[asm_col].dropna().unique().tolist()
+        selected_asm = st.selectbox(f"Select {asm_col}:", ["All"] + asms)
+        if selected_asm != "All":
+          df = df[df[asm_col] == selected_asm]
+
+    with col3:
+      tse_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["tse name", "tse rev", "tse", "territory sales executive"]
+          ),
+          None,
+      )
+      if tse_col:
+        tses = df[tse_col].dropna().unique().tolist()
+        selected_tse = st.selectbox(f"Select {tse_col}:", ["All"] + tses)
+        if selected_tse != "All":
+          df = df[df[tse_col] == selected_tse]
+
+    with col4:
+      lic_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["license no", "licence no", "lic id", "licid", "license id"]
+          ),
+          None,
+      )
+      if lic_col:
+        lic_ids = df[lic_col].dropna().unique().tolist()
+        lic_ids = [str(x) for x in lic_ids]
+        selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
+        if selected_lic != "All":
+          df = df[df[lic_col].astype(str) == selected_lic]
+
+    with col5:
+      pay_to_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["payment to", "pay to", "payment_to"]
+          ),
+          None,
+      )
+      if pay_to_col:
+        pay_tos = df[pay_to_col].dropna().unique().tolist()
+        selected_pay_to = st.selectbox(
+            f"Select {pay_to_col}:", ["All"] + pay_tos
+        )
+        if selected_pay_to != "All":
+          df = df[df[pay_to_col] == selected_pay_to]
+
+    with col6:
+      pay_status_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["payment status", "status", "payment_status"]
+          ),
+          None,
+      )
+      if pay_status_col:
+        pay_statuses = df[pay_status_col].dropna().unique().tolist()
+        selected_status = st.selectbox(
+            f"Select {pay_status_col}:", ["All"] + pay_statuses
+        )
+        if selected_status != "All":
+          df = df[df[pay_status_col] == selected_status]
+
+  elif is_first_three:
+    # 4 columns for first 3 tabs (Month + ASM Name + TSE Name + License No)
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+      month_col = next(
+          (c for c in df.columns if c.lower() in ["month", "months", "period"]),
+          None,
+      )
+      if month_col:
+        months = df[month_col].dropna().unique().tolist()
+        selected_month = st.selectbox(f"Select {month_col}:", ["All"] + months)
+        if selected_month != "All":
+          df = df[df[month_col] == selected_month]
+
+    with col2:
+      asm_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["asm name", "asm", "area sales manager"]
+          ),
+          None,
+      )
+      if asm_col:
+        asms = df[asm_col].dropna().unique().tolist()
+        selected_asm = st.selectbox(f"Select {asm_col}:", ["All"] + asms)
+        if selected_asm != "All":
+          df = df[df[asm_col] == selected_asm]
+
+    with col3:
+      tse_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["tse name", "tse rev", "tse", "territory sales executive"]
+          ),
+          None,
+      )
+      if tse_col:
+        tses = df[tse_col].dropna().unique().tolist()
+        selected_tse = st.selectbox(f"Select {tse_col}:", ["All"] + tses)
+        if selected_tse != "All":
+          df = df[df[tse_col] == selected_tse]
+
+    with col4:
+      lic_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["license no", "licence no", "lic id", "licid", "license id"]
+          ),
+          None,
+      )
+      if lic_col:
+        lic_ids = df[lic_col].dropna().unique().tolist()
+        lic_ids = [str(x) for x in lic_ids]
+        selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
+        if selected_lic != "All":
+          df = df[df[lic_col].astype(str) == selected_lic]
+
+  else:
+    # Standard 3 columns for other sheets
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+      asm_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["asm name", "asm", "area sales manager"]
+          ),
+          None,
+      )
+      if asm_col:
+        asms = df[asm_col].dropna().unique().tolist()
+        selected_asm = st.selectbox(f"Select {asm_col}:", ["All"] + asms)
+        if selected_asm != "All":
+          df = df[df[asm_col] == selected_asm]
+
+    with col2:
+      tse_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["tse name", "tse rev", "tse", "territory sales executive"]
+          ),
+          None,
+      )
+      if tse_col:
+        tses = df[tse_col].dropna().unique().tolist()
+        selected_tse = st.selectbox(f"Select {tse_col}:", ["All"] + tses)
+        if selected_tse != "All":
+          df = df[df[tse_col] == selected_tse]
+
+    with col3:
+      lic_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["license no", "licence no", "lic id", "licid", "license id"]
+          ),
+          None,
+      )
+      if lic_col:
+        lic_ids = df[lic_col].dropna().unique().tolist()
+        lic_ids = [str(x) for x in lic_ids]
+        selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
+        if selected_lic != "All":
+          df = df[df[lic_col].astype(str) == selected_lic]
 
   # --- OUTLET REFERENCE SEARCH & DROPDOWN SELECTION ---
   outlet_col = next(

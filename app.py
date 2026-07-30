@@ -159,7 +159,6 @@ try:
     search_col1, search_col2 = st.columns(2)
 
     with search_col1:
-      # Get unique list of outlets for suggestion/autocompletion reference
       outlet_list = df[outlet_col].dropna().astype(str).unique().tolist()
       search_outlet = st.selectbox(
           "🔍 Search Outlet Reference (Select or type to filter):",
@@ -187,14 +186,22 @@ try:
 
   st.subheader("Sheet Data & Records")
 
-  # --- COLUMN VISIBILITY (SHOW ALL REMAINING COLUMNS BY DEFAULT) ---
+  # --- COLUMN DISPLAY CONTROL (FIXED TO SHOW ALL BY DEFAULT WITHOUT CLUTTER) ---
   all_columns = df.columns.tolist()
 
-  selected_cols = st.multiselect(
-      "⚙️ Choose Columns to Display (All columns selected by default):",
-      options=all_columns,
-      default=all_columns,
+  # Checkbox to let users optionally hide/customize columns if they want, but defaults to ALL columns active
+  show_all_cols = st.checkbox(
+      "✅ Display All Columns Automatically", value=True
   )
+
+  if show_all_cols:
+    selected_cols = all_columns
+  else:
+    selected_cols = st.multiselect(
+        "⚙️ Choose Specific Columns to Display:",
+        options=all_columns,
+        default=all_columns,
+    )
 
   if selected_cols:
     st.dataframe(df[selected_cols], use_container_width=True, hide_index=True)

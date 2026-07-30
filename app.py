@@ -48,22 +48,38 @@ try:
     st.rerun()
 
   st.sidebar.divider()
+  st.sidebar.subheader("📁 Select Sheet Tab:")
 
-  # Select Sheet Tab from Sidebar
-  default_idx = (
-      available_sheet_names.index(DEFAULT_SHEET)
-      if DEFAULT_SHEET in available_sheet_names
-      else 0
-  )
-  selected_sheet = st.sidebar.selectbox(
-      "📁 Select Sheet Tab:", available_sheet_names, index=default_idx
-  )
+  # Initialize session state for active sheet if not present
+  if "selected_sheet" not in st.session_state:
+    st.session_state.selected_sheet = (
+        DEFAULT_SHEET
+        if DEFAULT_SHEET in available_sheet_names
+        else available_sheet_names[0]
+    )
+
+  # Render all sheets as buttons in the sidebar
+  for sheet in available_sheet_names:
+    btn_label = f"📍 {sheet}" if st.session_state.selected_sheet == sheet else sheet
+    if st.sidebar.button(btn_label, key=f"sheet_btn_{sheet}"):
+      st.session_state.selected_sheet = sheet
+      st.rerun()
 
   # Get the dataframe for the selected sheet
+  selected_sheet = st.session_state.selected_sheet
   df = sheets_dict[selected_sheet].copy()
 
   # Remove any accidental spaces at the beginning or end of column names
   df.columns = df.columns.str.strip()
+
+  # --- EXCLUDE SPECIFIC COLUMNS ---
+  columns_to_remove = [
+      "Licence Copy Submitted",
+      "Current Year Licence Copy Submitted (2025-26)",
+  ]
+  for col in columns_to_remove:
+    if col in df.columns:
+      df = df.drop(columns=[col])
 
   # Convert Account Number to string to prevent formatting errors in display
   if "Account Number" in df.columns:
@@ -74,13 +90,17 @@ try:
   st.subheader(f"Active Sheet: {selected_sheet}")
   st.subheader("Filter Rows")
 
-  # --- ROW FILTERS (ASM, TSE, Lic ID, Outlet Name) ---
+  # --- ROW FILTERS (ASM Name, TSE Name, License No) ---
   col1, col2, col3 = st.columns(3)
 
   with col1:
-    # ASM Filter (checking common variations of column names)
+    # ASM Name Filter
     asm_col = next(
-        (c for c in df.columns if c.lower() in ["asm", "area sales manager"]),
+        (
+            c
+            for c in df.columns
+            if c.lower() in ["asm name", "asm", "area sales manager"]
+        ),
         None,
     )
     if asm_col:
@@ -90,12 +110,13 @@ try:
         df = df[df[asm_col] == selected_asm]
 
   with col2:
-    # TSE Filter (checking common variations of column names)
+    # TSE Name Filter
     tse_col = next(
         (
             c
             for c in df.columns
-            if c.lower() in ["tse rev", "tse", "territory sales executive"]
+            if c.lower()
+            in ["tse name", "tse rev", "tse", "territory sales executive"]
         ),
         None,
     )
@@ -106,25 +127,30 @@ try:
         df = df[df[tse_col] == selected_tse]
 
   with col3:
-    # Lic ID Filter
+    # License No Filter
     lic_col = next(
-        (c for c in df.columns if c.lower() in ["lic id", "licid", "license id"]),
+        (
+            c
+            for c in df.columns
+            if c.lower()
+            in ["license no", "licence no", "lic id", "licid", "license id"]
+        ),
         None,
     )
     if lic_col:
       lic_ids = df[lic_col].dropna().unique().tolist()
-      # Convert elements to string for clean sorting/display if needed
       lic_ids = [str(x) for x in lic_ids]
-      selected_lic = st.selectbox("Select Lic ID:", ["All"] + lic_ids)
+      selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
       if selected_lic != "All":
         df = df[df[lic_col].astype(str) == selected_lic]
 
-  # Outlet Name Free Text Search & Specific Dropdown Selection
+  # --- OUTLET REFERENCE SEARCH & DROPDOWN SELECTION ---
   outlet_col = next(
       (
           c
           for c in df.columns
-          if c.lower() in ["outlet name", "outlet", "customer name"]
+          if c.lower()
+          in ["outlet reference", "outlet name", "outlet", "customer name"]
       ),
       None,
   )
@@ -133,16 +159,19 @@ try:
     search_col1, search_col2 = st.columns(2)
 
     with search_col1:
-      search_outlet = st.text_input("🔍 Search by Outlet Name (Keyword):", "")
-      if search_outlet:
-        df = df[
-            df[outlet_col].astype(str).str.contains(search_outlet, case=False, na=False)
-        ]
+      # Get unique list of outlets for suggestion/autocompletion reference
+      outlet_list = df[outlet_col].dropna().astype(str).unique().tolist()
+      search_outlet = st.selectbox(
+          "🔍 Search Outlet Reference (Select or type to filter):",
+          ["All"] + outlet_list,
+      )
+      if search_outlet != "All":
+        df = df[df[outlet_col].astype(str) == search_outlet]
 
     with search_col2:
       outlets = df[outlet_col].dropna().unique().tolist()
       selected_outlet = st.selectbox(
-          "Or Select Specific Outlet Name:", ["All"] + outlets
+          "Or Select Specific Outlet Reference:", ["All"] + outlets
       )
       if selected_outlet != "All":
         df = df[df[outlet_col] == selected_outlet]
@@ -158,7 +187,7 @@ try:
 
   st.subheader("Sheet Data & Records")
 
-  # --- COLUMN VISIBILITY (SHOW ALL COLUMNS BY DEFAULT) ---
+  # --- COLUMN VISIBILITY (SHOW ALL REMAINING COLUMNS BY DEFAULT) ---
   all_columns = df.columns.tolist()
 
   selected_cols = st.multiselect(

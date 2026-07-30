@@ -4,22 +4,21 @@ import pandas as pd
 # Configure the mobile-friendly page layout
 st.set_page_config(page_title="Team Outlet Dashboard", layout="wide")
 
-# Your specific Google Sheet ID
-SHEET_ID = "1j7jmyjjz2_bWJ-s7rZmtj52WS7XzrrVfNU4wnZ9mg9E" 
-CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+# Fetch credentials from Streamlit Secrets
+EXCEL_URL = st.secrets["sharepoint"]["file_url"]
+SHEET_NAME = st.secrets["sharepoint"]["sheet_name"]
 
 # Cache the data for 10 minutes so the app loads instantly for the team
 @st.cache_data(ttl=600) 
 def load_data():
-    # Read the data from the Google Sheet
-    df = pd.read_csv(CSV_URL)
+    # Read the data from the SharePoint Excel file
+    df = pd.read_excel(EXCEL_URL, sheet_name=SHEET_NAME)
     
     # Remove any accidental spaces at the beginning or end of column names
     df.columns = df.columns.str.strip()
     
-    # Convert Account Number to string to prevent commas in the screenshot display
+    # Convert Account Number to string to prevent commas in the display
     if 'Account Number' in df.columns:
-        # Convert to string and remove '.0' if pandas read it as a float
         df['Account Number'] = df['Account Number'].astype(str).str.replace(r'\.0$', '', regex=True)
         
     return df
@@ -32,7 +31,6 @@ try:
     st.subheader("Filter Rows")
     
     # --- ROW FILTERS ---
-    # Using 3 columns to keep the filters organized on the screen
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -85,33 +83,28 @@ try:
             if selected_outlet != "All":
                 df = df[df['Outlet Name'] == selected_outlet]
     
-    
     st.divider()
     st.subheader("Outlet Payment & Bank Status")
     
-    # Base columns that are allowed to be displayed (Added 'Payment Date' here)
     base_cols = [
         'Month', 'Outlet Name', 'Lic ID', 'Payment To', 'Claim Amount', 
         'Payment Status', 'Payment Date', 'UTR NO', 'Bank Name', 'Account Number', 
         'IFSC Code'
     ]
     
-    # Filter to only columns that actually exist in the dataframe
     available_cols = [col for col in base_cols if col in df.columns]
     
-    # --- COLUMN VISIBILITY (FOR SCREENSHOTS) ---
     selected_cols = st.multiselect(
-        "⚙️ Choose Columns to Display (Click 'X' to hide a column for screenshots):",
+        "⚙️ Choose Columns to Display:",
         options=available_cols,
         default=available_cols
     )
     
-    # Display the filtered dataframe based on selected columns
     if selected_cols:
         st.dataframe(df[selected_cols], use_container_width=True, hide_index=True)
     else:
         st.warning("Please select at least one column to display.")
     
 except Exception as e:
-    st.error("Error loading data. Please ensure the Google Sheet's access is set to 'Anyone with the link' can 'View'.")
+    st.error("Error loading data from SharePoint. Please check your network connection or SharePoint file permissions.")
     st.write(f"Technical details: {e}")

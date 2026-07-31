@@ -12,8 +12,7 @@ EXCEL_URL = st.secrets["sharepoint"]["file_url"]
 DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
 
 
-# Cache the data. We include a dynamic time key based on whether 9:00 PM today has passed
-# so that the cache automatically expires/refreshes post 9 PM daily.
+# Cache the data with a dynamic time key based on whether 9:00 PM today has passed
 @st.cache_data(ttl=3600)
 def load_workbook_data(url, refresh_key):
   headers = {
@@ -60,45 +59,90 @@ try:
     st.session_state.logged_in = False
 
   if not st.session_state.logged_in:
-    # Modern Login Page Design
+    # Modern Dark Theme Login Page matching user's design reference (without logo)
     st.markdown(
         """
         <style>
-            .login-container {
-                max-width: 400px;
-                margin: 50px auto;
-                padding: 30px;
-                background-color: #f8f9fa;
-                border-radius: 12px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            .stApp {
+                background-color: #0e1117;
+            }
+            .login-card {
+                background-color: #161b22;
+                padding: 40px;
+                border-radius: 16px;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+                max-width: 450px;
+                margin: 40px auto;
+                border: 1px solid #30363d;
             }
             .login-title {
-                text-align: center;
-                color: #1f1f1f;
+                color: #ffffff;
+                font-size: 28px;
                 font-weight: 700;
-                margin-bottom: 20px;
+                text-align: center;
+                margin-bottom: 8px;
+            }
+            .login-subtitle {
+                color: #8b949e;
+                font-size: 14px;
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .stTextInput label {
+                color: #c9d1d9 !important;
+                font-weight: 500;
+            }
+            .stTextInput input {
+                background-color: #0d1117 !important;
+                color: #ffffff !important;
+                border: 1px solid #30363d !important;
+                border-radius: 8px !important;
+                padding: 10px 14px !important;
+            }
+            .stTextInput input:focus {
+                border-color: #58a6ff !important;
+                box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15) !important;
+            }
+            .stButton button {
+                background-color: #21262d !important;
+                color: #ffffff !important;
+                border: 1px solid #30363d !important;
+                border-radius: 8px !important;
+                font-weight: 600 !important;
+                padding: 10px 20px !important;
+                transition: background-color 0.2s ease;
+            }
+            .stButton button:hover {
+                background-color: #30363d !important;
+                border-color: #8b949e !important;
             }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    col1, col2, col3 = st.columns([1, 1.4, 1])
     with col2:
       st.markdown(
-          "<h2 class='login-title'>🔐 Secure Login</h2>", unsafe_allow_html=True
+          """
+            <div class="login-card">
+                <div class="login-title">Welcome Back</div>
+                <div class="login-subtitle">Sign in to access WB Sale Data Dashboard</div>
+            </div>
+            """,
+          unsafe_allow_html=True,
       )
-      st.write("Please sign in with your assigned corporate credentials.")
 
+      # Using Streamlit form inside container bounds for state handling
       with st.form("login_form"):
-        userid_input = st.text_input("User_ID")
-        password_input = st.text_input("Password", type="password")
-        submit_button = st.form_submit_button(
-            "Login to Dashboard", use_container_width=True
+        userid_input = st.text_input("User ID", placeholder="Enter your User ID")
+        password_input = st.text_input(
+            "Password", type="password", placeholder="Enter your password"
         )
+        st.markdown("<br>", unsafe_allow_html=True)
+        submit_button = st.form_submit_button("Sign In", use_container_width=True)
 
         if submit_button:
-          # Check if 'Users' sheet exists in the workbook
           users_sheet_key = next(
               (s for s in available_sheet_names if s.strip().lower() == "users"),
               None,
@@ -108,7 +152,6 @@ try:
             users_df = sheets_dict[users_sheet_key].copy()
             users_df.columns = users_df.columns.str.strip()
 
-            # Find columns matching User_ID and password dynamically
             id_col = next(
                 (c for c in users_df.columns if c.lower() == "user_id"), None
             )
@@ -125,7 +168,6 @@ try:
             )
 
             if id_col and p_col:
-              # Validate credentials against User_ID and password
               matched_user = users_df[
                   (users_df[id_col].astype(str).str.strip() == userid_input.strip())
                   & (
@@ -136,7 +178,6 @@ try:
 
               if not matched_user.empty:
                 st.session_state.logged_in = True
-                # Fetch user's actual name if available, otherwise fallback to User_ID
                 if name_col and not pd.isna(matched_user.iloc[0][name_col]):
                   st.session_state.username = str(matched_user.iloc[0][name_col])
                 else:
@@ -144,7 +185,7 @@ try:
                 st.success("Login successful! Redirecting...")
                 st.rerun()
               else:
-                st.error("Invalid User_ID or Password.")
+                st.error("Invalid User ID or Password.")
             else:
               st.error(
                   "Could not locate 'User_ID' or 'Password' columns in the"

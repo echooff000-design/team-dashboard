@@ -673,7 +673,7 @@ try:
   if show_all_cols:
     selected_cols = all_columns
   else:
-    selected_cols = st.native_multiselect(
+    selected_cols = st.multiselect(
         "⚙️ Choose Specific Columns to Display:",
         options=all_columns,
         default=all_columns,
@@ -683,16 +683,17 @@ try:
     filtered_df = df[selected_cols]
     st.dataframe(filtered_df, use_container_width=True, hide_index=True)
 
-    # --- EXCEL (.xlsx) DOWNLOAD BUTTON ---
-    excel_data = convert_df_to_excel(filtered_df)
-    st.download_button(
-        label="📥 Download Filtered Data as Excel (.xlsx)",
-        data=excel_data,
-        file_name=f"{selected_sheet}_Filtered_Data.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        ),
-    )
+    # --- EXCEL (.xlsx) DOWNLOAD BUTTON (Disabled for Trade Payment, Marketing Payment, and Gift Claim Details) ---
+    if not (is_payment_sheet or is_gift_sheet):
+      excel_data = convert_df_to_excel(filtered_df)
+      st.download_button(
+          label="📥 Download Filtered Data as Excel (.xlsx)",
+          data=excel_data,
+          file_name=f"{selected_sheet}_Filtered_Data.xlsx",
+          mime=(
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          ),
+      )
   else:
     st.warning("Please select at least one column to display.")
 

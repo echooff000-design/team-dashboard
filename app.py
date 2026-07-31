@@ -133,7 +133,6 @@ try:
           unsafe_allow_html=True,
       )
 
-      # Using Streamlit form inside container bounds for state handling
       with st.form("login_form"):
         userid_input = st.text_input("User ID", placeholder="Enter your User ID")
         password_input = st.text_input(
@@ -196,7 +195,7 @@ try:
                 "The 'Users' sheet was not found in your uploaded workbook."
             )
 
-    st.stop()  # Halt execution of the dashboard until logged in
+    st.stop()
 
   # --- MAIN DASHBOARD (LOADS AFTER SUCCESSFUL LOGIN) ---
   st.title("📊 WB Trade Claim & KYC Details")
@@ -226,7 +225,7 @@ try:
   st.sidebar.divider()
   st.sidebar.subheader("📁 Select Sheet Tab:")
 
-  # Filter out the 'Users' sheet from sidebar tabs so users only view active data tabs
+  # Filter out the 'Users' sheet from sidebar tabs
   data_sheet_names = [
       s for s in available_sheet_names if s.strip().lower() != "users"
   ]
@@ -253,14 +252,52 @@ try:
   # Remove any accidental spaces at the beginning or end of column names
   df.columns = df.columns.str.strip()
 
-  # --- EXCLUDE SPECIFIC COLUMNS ---
-  columns_to_remove = [
-      "Licence Copy Submitted",
-      "Current Year Licence Copy Submitted (2025-26)",
-  ]
-  for col in columns_to_remove:
-    if col in df.columns:
-      df = df.drop(columns=[col])
+  # --- CUSTOM TRANSFORMATIONS & COLUMN MODIFICATIONS FOR PAYMENT SHEETS ---
+  sheet_lower = selected_sheet.lower()
+  is_payment_sheet = (
+      "trade payment details" in sheet_lower
+      or "marketing payment details" in sheet_lower
+  )
+
+  if is_payment_sheet:
+    # 1. Replace Claim Amount values with Net Amount values if both exist
+    claim_col = next(
+        (c for c in df.columns if c.lower() in ["claim amount", "claim_amount"]),
+        None,
+    )
+    net_col = next(
+        (c for c in df.columns if c.lower() in ["net amount", "net_amount"]),
+        None,
+    )
+
+    if claim_col and net_col:
+      df[claim_col] = df[net_col]
+
+    # 2. Remove specified columns for payment sheets
+    cols_to_drop_payment = [
+        "ID",
+        "ASM",
+        "TSE Rev",
+        "Net Amount",
+        "Payment Status",
+        "Licence Copy Submitted",
+        "Current Year Licence Copy Submitted (2025-26)",
+    ]
+    for col in cols_to_drop_payment:
+      match_col = next(
+          (c for c in df.columns if c.lower() == col.lower()), None
+      )
+      if match_col:
+        df = df.drop(columns=[match_col])
+  else:
+    # Standard column exclusions for other sheets
+    columns_to_remove = [
+        "Licence Copy Submitted",
+        "Current Year Licence Copy Submitted (2025-26)",
+    ]
+    for col in columns_to_remove:
+      if col in df.columns:
+        df = df.drop(columns=[col])
 
   # Convert Account Number to string to prevent formatting errors in display
   if "Account Number" in df.columns:
@@ -272,20 +309,15 @@ try:
   st.subheader("Filter Rows")
 
   # --- DYNAMIC ROW FILTERS BASED ON SHEET TYPE ---
-  sheet_lower = selected_sheet.lower()
   is_first_three = (
       selected_sheet in data_sheet_names[:3]
       if len(data_sheet_names) >= 3
       else True
   )
-  is_payment_sheet = (
-      "trade payment details" in sheet_lower
-      or "marketing payment details" in sheet_lower
-  )
 
   if is_payment_sheet:
-    # 6 columns for Payment Details sheets
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # 5 filters for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To) - Payment Status filter removed
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
       month_col = next(
@@ -362,23 +394,6 @@ try:
         )
         if selected_pay_to != "All":
           df = df[df[pay_to_col] == selected_pay_to]
-
-    with col6:
-      pay_status_col = next(
-          (
-              c
-              for c in df.columns
-              if c.lower() in ["payment status", "status", "payment_status"]
-          ),
-          None,
-      )
-      if pay_status_col:
-        pay_statuses = df[pay_status_col].dropna().unique().tolist()
-        selected_status = st.selectbox(
-            f"Select {pay_status_col}:", ["All"] + pay_statuses
-        )
-        if selected_status != "All":
-          df = df[df[pay_status_col] == selected_status]
 
   elif is_first_three:
     # 4 columns for first 3 tabs (Month + ASM Name + TSE Name + License No)

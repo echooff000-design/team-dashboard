@@ -43,8 +43,6 @@ def convert_df_to_excel(df):
   return processed_data
 
 
-st.title("📊 WB Trade Claim & KYC Details")
-
 try:
   # --- AUTO-REFRESH LOGIC FOR 9:00 PM DAILY ---
   now = datetime.now()
@@ -57,8 +55,120 @@ try:
   sheets_dict = load_workbook_data(EXCEL_URL, current_refresh_key)
   available_sheet_names = list(sheets_dict.keys())
 
+  # --- AUTHENTICATION CHECK USING "Users" SHEET ---
+  if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+  if not st.session_state.logged_in:
+    # Modern Login Page Design
+    st.markdown(
+        """
+        <style>
+            .login-container {
+                max-width: 400px;
+                margin: 50px auto;
+                padding: 30px;
+                background-color: #f8f9fa;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+            .login-title {
+                text-align: center;
+                color: #1f1f1f;
+                font-weight: 700;
+                margin-bottom: 20px;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+      st.markdown(
+          "<h2 class='login-title'>🔐 Secure Login</h2>", unsafe_allow_html=True
+      )
+      st.write("Please sign in with your assigned corporate credentials.")
+
+      with st.form("login_form"):
+        userid_input = st.text_input("User_ID")
+        password_input = st.text_input("Password", type="password")
+        submit_button = st.form_submit_button(
+            "Login to Dashboard", use_container_width=True
+        )
+
+        if submit_button:
+          # Check if 'Users' sheet exists in the workbook
+          users_sheet_key = next(
+              (s for s in available_sheet_names if s.strip().lower() == "users"),
+              None,
+          )
+
+          if users_sheet_key:
+            users_df = sheets_dict[users_sheet_key].copy()
+            users_df.columns = users_df.columns.str.strip()
+
+            # Find columns matching User_ID and password dynamically
+            id_col = next(
+                (c for c in users_df.columns if c.lower() == "user_id"), None
+            )
+            p_col = next(
+                (
+                    c
+                    for c in users_df.columns
+                    if c.lower() in ["password", "pass", "pwd"]
+                ),
+                None,
+            )
+            name_col = next(
+                (c for c in users_df.columns if c.lower() == "name"), None
+            )
+
+            if id_col and p_col:
+              # Validate credentials against User_ID and password
+              matched_user = users_df[
+                  (users_df[id_col].astype(str).str.strip() == userid_input.strip())
+                  & (
+                      users_df[p_col].astype(str).str.strip()
+                      == password_input.strip()
+                  )
+              ]
+
+              if not matched_user.empty:
+                st.session_state.logged_in = True
+                # Fetch user's actual name if available, otherwise fallback to User_ID
+                if name_col and not pd.isna(matched_user.iloc[0][name_col]):
+                  st.session_state.username = str(matched_user.iloc[0][name_col])
+                else:
+                  st.session_state.username = userid_input
+                st.success("Login successful! Redirecting...")
+                st.rerun()
+              else:
+                st.error("Invalid User_ID or Password.")
+            else:
+              st.error(
+                  "Could not locate 'User_ID' or 'Password' columns in the"
+                  " 'Users' sheet."
+              )
+          else:
+            st.error(
+                "The 'Users' sheet was not found in your uploaded workbook."
+            )
+
+    st.stop()  # Halt execution of the dashboard until logged in
+
+  # --- MAIN DASHBOARD (LOADS AFTER SUCCESSFUL LOGIN) ---
+  st.title("📊 WB Trade Claim & KYC Details")
+
   # --- SIDEBAR CONTROLS ---
   st.sidebar.header("🛠️ Dashboard Controls")
+  st.sidebar.write(f"👤 Logged in as: **{st.session_state.get('username')}**")
+
+  if st.sidebar.button("🔒 Logout"):
+    st.session_state.logged_in = False
+    st.rerun()
+
+  st.sidebar.divider()
 
   # Manual Refresh Button
   if st.sidebar.button("🔄 Refresh Data Now"):
@@ -75,16 +185,21 @@ try:
   st.sidebar.divider()
   st.sidebar.subheader("📁 Select Sheet Tab:")
 
+  # Filter out the 'Users' sheet from sidebar tabs so users only view active data tabs
+  data_sheet_names = [
+      s for s in available_sheet_names if s.strip().lower() != "users"
+  ]
+
   # Initialize session state for active sheet if not present
   if "selected_sheet" not in st.session_state:
     st.session_state.selected_sheet = (
         DEFAULT_SHEET
-        if DEFAULT_SHEET in available_sheet_names
-        else available_sheet_names[0]
+        if DEFAULT_SHEET in data_sheet_names
+        else data_sheet_names[0]
     )
 
   # Render all sheets as buttons in the sidebar
-  for sheet in available_sheet_names:
+  for sheet in data_sheet_names:
     btn_label = f"📍 {sheet}" if st.session_state.selected_sheet == sheet else sheet
     if st.sidebar.button(btn_label, key=f"sheet_btn_{sheet}"):
       st.session_state.selected_sheet = sheet
@@ -118,8 +233,8 @@ try:
   # --- DYNAMIC ROW FILTERS BASED ON SHEET TYPE ---
   sheet_lower = selected_sheet.lower()
   is_first_three = (
-      selected_sheet in available_sheet_names[:3]
-      if len(available_sheet_names) >= 3
+      selected_sheet in data_sheet_names[:3]
+      if len(data_sheet_names) >= 3
       else True
   )
   is_payment_sheet = (

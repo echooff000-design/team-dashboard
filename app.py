@@ -29,7 +29,9 @@ def load_workbook_data(url, refresh_key):
     )
 
   excel_bytes = io.BytesIO(response.content)
-  all_sheets = pd.read_excel(excel_bytes, sheet_name=None)
+
+  # Explicitly parse dates with dayfirst=True to ensure DD/MM/YY format is respected
+  all_sheets = pd.read_excel(excel_bytes, sheet_name=None, dayfirst=True)
   return all_sheets
 
 
@@ -306,15 +308,13 @@ try:
         df["Account Number"].astype(str).str.replace(r"\.0$", "", regex=True)
     )
 
-  # --- FORMAT DATE COLUMNS TO 'DD-Mon-YY' (e.g. 13-Apr-26) ---
+  # --- FORMAT DATE COLUMNS TO 'DD-Mon-YY' (e.g. 10-Jul-26) CORRECTING DAY/MONTH ORDER ---
   for col in df.columns:
     if "date" in col.lower():
       try:
-        # Convert to datetime safely
-        parsed_dates = pd.to_datetime(df[col], errors="coerce")
-        # Format successfully parsed dates into '13-Apr-26'
+        # parsed with dayfirst=True to handle 10.07.26 as 10th July correctly
+        parsed_dates = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
         df[col] = parsed_dates.dt.strftime("%d-%b-%y").fillna(df[col])
-        # Convert back to string for consistency
         df[col] = df[col].astype(str).str.replace("NaT", "", case=False)
       except Exception:
         pass

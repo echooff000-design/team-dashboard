@@ -29,7 +29,7 @@ def load_workbook_data(url, refresh_key):
     )
 
   excel_bytes = io.BytesIO(response.content)
-  all_sheets = pd.read_excel(excel_bytes, sheet_name=None)
+  all_sheets = pd.read_excel(excel_bytes, sheet_name=None, dayfirst=True)
   return all_sheets
 
 
@@ -252,15 +252,15 @@ try:
   # Remove any accidental spaces at the beginning or end of column names
   df.columns = df.columns.str.strip()
 
-  # --- CUSTOM TRANSFORMATIONS & COLUMN MODIFICATIONS FOR PAYMENT SHEETS ---
+  # --- CUSTOM TRANSFORMATIONS & COLUMN MODIFICATIONS PER SHEET TYPE ---
   sheet_lower = selected_sheet.lower()
   is_payment_sheet = (
       "trade payment details" in sheet_lower
       or "marketing payment details" in sheet_lower
   )
+  is_gift_sheet = "gift claim details" in sheet_lower
 
   if is_payment_sheet:
-    # 1. Replace Claim Amount values with Net Amount values if both exist
     claim_col = next(
         (c for c in df.columns if c.lower() in ["claim amount", "claim_amount"]),
         None,
@@ -273,11 +273,8 @@ try:
     if claim_col and net_col:
       df[claim_col] = df[net_col]
 
-    # 2. Remove specified columns for payment sheets (including New ASM Remarks)
     cols_to_drop_payment = [
         "ID",
-        "ASM",
-        "TSE Rev",
         "Net Amount",
         "Payment Status",
         "New ASM Remarks",
@@ -290,8 +287,24 @@ try:
       )
       if match_col:
         df = df.drop(columns=[match_col])
+
+  elif is_gift_sheet:
+    cols_to_drop_gift = ["ASM", "TSE", "ASM Name", "TSE Name"]
+    for col in cols_to_drop_gift:
+      match_col = next(
+          (c for c in df.columns if c.lower() == col.lower()), None
+      )
+      if match_col:
+        df = df.drop(columns=[match_col])
+
+    columns_to_remove = [
+        "Licence Copy Submitted",
+        "Current Year Licence Copy Submitted (2025-26)",
+    ]
+    for col in columns_to_remove:
+      if col in df.columns:
+        df = df.drop(columns=[col])
   else:
-    # Standard column exclusions for other sheets
     columns_to_remove = [
         "Licence Copy Submitted",
         "Current Year Licence Copy Submitted (2025-26)",
@@ -317,8 +330,8 @@ try:
   )
 
   if is_payment_sheet:
-    # 5 filters for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To)
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # 6 filters for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To, Payment Status)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
 
     with col1:
       month_col = next(
@@ -396,8 +409,55 @@ try:
         if selected_pay_to != "All":
           df = df[df[pay_to_col] == selected_pay_to]
 
+    with col6:
+      pay_status_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower() in ["payment status", "status", "payment_status"]
+          ),
+          None,
+      )
+      if pay_status_col:
+        pay_statuses = df[pay_status_col].dropna().unique().tolist()
+        selected_status = st.selectbox(
+            f"Select {pay_status_col}:", ["All"] + pay_statuses
+        )
+        if selected_status != "All":
+          df = df[df[pay_status_col] == selected_status]
+
+  elif is_gift_sheet:
+    col1, col2 = st.columns(2)
+
+    with col1:
+      month_col = next(
+          (c for c in df.columns if c.lower() in ["month", "months", "period"]),
+          None,
+      )
+      if month_col:
+        months = df[month_col].dropna().unique().tolist()
+        selected_month = st.selectbox(f"Select {month_col}:", ["All"] + months)
+        if selected_month != "All":
+          df = df[df[month_col] == selected_month]
+
+    with col2:
+      lic_col = next(
+          (
+              c
+              for c in df.columns
+              if c.lower()
+              in ["license no", "licence no", "lic id", "licid", "license id"]
+          ),
+          None,
+      )
+      if lic_col:
+        lic_ids = df[lic_col].dropna().unique().tolist()
+        lic_ids = [str(x) for x in lic_ids]
+        selected_lic = st.selectbox("Select License No:", ["All"] + lic_ids)
+        if selected_lic != "All":
+          df = df[df[lic_col].astype(str) == selected_lic]
+
   elif is_first_three:
-    # 4 columns for first 3 tabs (Month + ASM Name + TSE Name + License No)
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -460,7 +520,6 @@ try:
           df = df[df[lic_col].astype(str) == selected_lic]
 
   else:
-    # Standard 3 columns for other sheets
     col1, col2, col3 = st.columns(3)
 
     with col1:

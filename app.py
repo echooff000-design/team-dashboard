@@ -29,7 +29,7 @@ def load_workbook_data(url, refresh_key):
     )
 
   excel_bytes = io.BytesIO(response.content)
-  all_sheets = pd.read_excel(excel_bytes, sheet_name=None, dayfirst=True)
+  all_sheets = pd.read_excel(excel_bytes, sheet_name=None)
   return all_sheets
 
 
@@ -586,10 +586,7 @@ try:
 
     with search_col1:
       outlet_list = df[outlet_col].dropna().astype(str).unique().tolist()
-      search_outlet = st.selectbox(
-          "🔍 Search Outlet Reference (Select or type to filter):",
-          ["All"] + outlet_list,
-      )
+      search_outlet = st.selectbox(r"🔍 Search Outlet Reference (Select or type to filter):", ["All"] + outlet_list)
       if search_outlet != "All":
         df = df[df[outlet_col].astype(str) == search_outlet]
 

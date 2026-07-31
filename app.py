@@ -273,13 +273,14 @@ try:
     if claim_col and net_col:
       df[claim_col] = df[net_col]
 
-    # 2. Remove specified columns for payment sheets
+    # 2. Remove specified columns for payment sheets (including New ASM Remarks)
     cols_to_drop_payment = [
         "ID",
         "ASM",
         "TSE Rev",
         "Net Amount",
         "Payment Status",
+        "New ASM Remarks",
         "Licence Copy Submitted",
         "Current Year Licence Copy Submitted (2025-26)",
     ]
@@ -305,6 +306,19 @@ try:
         df["Account Number"].astype(str).str.replace(r"\.0$", "", regex=True)
     )
 
+  # --- FORMAT DATE COLUMNS TO 'DD-Mon-YY' (e.g. 13-Apr-26) ---
+  for col in df.columns:
+    if "date" in col.lower():
+      try:
+        # Convert to datetime safely
+        parsed_dates = pd.to_datetime(df[col], errors="coerce")
+        # Format successfully parsed dates into '13-Apr-26'
+        df[col] = parsed_dates.dt.strftime("%d-%b-%y").fillna(df[col])
+        # Convert back to string for consistency
+        df[col] = df[col].astype(str).str.replace("NaT", "", case=False)
+      except Exception:
+        pass
+
   st.subheader(f"Active Sheet: {selected_sheet}")
   st.subheader("Filter Rows")
 
@@ -316,7 +330,7 @@ try:
   )
 
   if is_payment_sheet:
-    # 5 filters for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To) - Payment Status filter removed
+    # 5 filters for Payment Details sheets (Month, ASM Name, TSE Name, License No, Payment To)
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:

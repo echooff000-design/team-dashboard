@@ -8,8 +8,8 @@ import streamlit as st
 st.set_page_config(page_title="Team Outlet Dashboard", layout="wide")
 
 # Fetch credentials from Streamlit Secrets
-#EXCEL_URL = st.secrets["sharepoint"]["file_url"]
-#DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
+EXCEL_URL = st.secrets["sharepoint"]["file_url"]
+DEFAULT_SHEET = st.secrets["sharepoint"]["sheet_name"]
 
 
 # Cache the data with a dynamic time key based on whether 9:00 PM today has passed
